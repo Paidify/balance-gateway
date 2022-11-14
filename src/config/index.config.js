@@ -3,8 +3,12 @@ import { config } from 'dotenv';
 config();
 
 // app
+export const HOST = process.env.HOST || 'http://localhost:3001';
 export const PORT = process.env.PORT || 3000;
 export const NODE_ENV = process.env.NODE_ENV || 'development';
+
+// api gateway
+export const API_GATEWAY_URL = process.env.API_GATEWAY_URL || 'http://localhost:3000';
 
 // db
 export const DB_HOST = process.env.DB_HOST || 'localhost';

@@ -4,6 +4,7 @@ import balance from './gateway/balance.js';
 import pkg from '../package.json' assert { type: 'json' };
 import poolU from './services/dbUniv.js';
 import poolP from './services/dbPaidify.js';
+import apiGateway from './api-gateway/apiGateway.js';
 
 const app = express();
 
@@ -17,7 +18,6 @@ app.use((_, res, next) => {
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
     next();
 });
-app.use('/check', balance);
 app.get('/', (_, res) => res.status(200).json({
     message: 'Welcome to the Paidify Balance Gateway',
     version: pkg.version,
@@ -45,6 +45,8 @@ app.get('/ping', async (_, res) => {
 
     res.status(200).json(results);
 });
-app.use((_, res) => res.status(404).send('Not Found'));
+app.use('/checkBalance', balance);
+app.post('/api-gateway', async (_, res) => res.status(200).json(await apiGateway()));
+app.use((_, res) => res.status(404).json({ message: 'Not Found' }));
 
 export default app;

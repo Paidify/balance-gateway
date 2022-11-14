@@ -1,9 +1,9 @@
 import { Router } from 'express';
+import axios from 'axios';
 import { createOne, deleteOne, readMany, readOne, updateOne } from '../helpers/crud.js'
 import poolP from '../services/dbPaidify.js';
 import poolU from '../services/dbUniv.js';
-import apiWestBank from '../services/apiWestBank.js';
-import apiEastBank from '../services/apiEastBank.js';
+import { WESTERN_BANK_API_URL, EAST_BANK_API_URL } from '../config/index.config.js';
 
 const router = new Router();
 
@@ -24,7 +24,7 @@ router.post('/', async (req, res) => {
     try {
         person = await readOne(
             'person',
-            { 'person': ['doc_number'], 'doc_type': ['type'], 'address': ['zip_code'] },
+            { 'person': ['doc_number'], 'doc_type': ['doc_type'], 'address': ['zip_code'] },
             [
                 'JOIN address ON person.address_id = address.id',
                 'JOIN doc_type ON person.doc_type_id = doc_type.id',
@@ -37,7 +37,7 @@ router.post('/', async (req, res) => {
         return res.status(500).json({ message: 'Internal server error' });
     }
 
-    const { doc_number, type, zip_code } = person;
+    const { doc_number, doc_type, zip_code } = person;
 
     // TODO: Call banks apis
 });

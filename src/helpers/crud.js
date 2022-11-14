@@ -1,4 +1,4 @@
-import { joinClauses, limitClause, orderClause, selectClause, whereClause } from "./queryHelpers.js";
+import { joinClauses, selectClause, whereClause, limitClause, orderClause } from './queryHelpers.js';
 
 export async function deleteOne(table, where, conn) {
     const result = (await conn.query(`
