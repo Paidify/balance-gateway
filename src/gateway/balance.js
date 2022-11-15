@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import axios from 'axios';
 import { createOne, deleteOne, readMany, readOne, updateOne } from '../helpers/crud.js'
 import poolP from '../services/dbPaidify.js';
 import poolU from '../services/dbUniv.js';
