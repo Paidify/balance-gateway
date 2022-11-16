@@ -49,7 +49,7 @@ app.get('/ping', async (_, res) => {
 app.use('/checkBalance', balance);
 app.post('/api-gateway', async (_, res) => {
     const { status, message, error } = await apiGateway();
-    res.status(status).json(message, error);
+    res.status(status).json({ message, error });
 });
 app.use((_, res) => res.status(404).json({ message: 'Not Found' }));
 
