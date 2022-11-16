@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { createOne, deleteOne, readMany, readOne, updateOne } from '../helpers/crud.js'
 import poolP from '../services/dbPaidify.js';
 import poolU from '../services/dbUniv.js';
-import { WESTERN_BANK_API_URL, EAST_BANK_API_URL } from '../config/index.config.js';
+import { WESTERN_BANK_API_ENDPOINT, EAST_BANK_API_ENDPOINT } from '../config/index.config.js';
 
 const router = new Router();
 
