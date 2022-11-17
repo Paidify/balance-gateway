@@ -46,7 +46,7 @@ app.get('/ping', async (_, res) => {
 
     res.status(200).json(results);
 });
-app.use('/checkBalance', balance);
+app.use('/check-balance', balance);
 app.post('/api-gateway', async (_, res) => {
     const { status, message, error } = await apiGateway();
     res.status(status).json({ message, error });
