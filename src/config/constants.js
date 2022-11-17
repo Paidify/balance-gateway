@@ -1,6 +1,1 @@
-// export const PAYER_TYPE_PERSON = 'person';
-// export const PAYER_TYPE_UNIV_ACTOR = 'univ_actor';
-// export const PAYER_TYPE_USER = 'user';
-
-// export const CARD_TYPE_CREDIT = 'credit';
-// export const CARD_TYPE_DEBIT = 'debit';
+export const CARD_FIRST_DIGIT_ALLOWED = [3, 4, 5];

@@ -1,15 +1,17 @@
 import { Router } from 'express';
-import { createOne, deleteOne, readMany, readOne, updateOne } from '../helpers/crud.js'
+import { readOne } from '../helpers/crud.js'
 import poolP from '../services/dbPaidify.js';
 import poolU from '../services/dbUniv.js';
 import { WESTERN_BANK_API_ENDPOINT, EAST_BANK_API_ENDPOINT } from '../config/index.config.js';
+import { cardIsWestern, validateCardNumbers } from '../helpers/utils.js';
+import fetch from '../helpers/fetch.js';
 
 const router = new Router();
 
 router.post('/', async (req, res) => {
     const { user_id, card_numbers } = req.body;
-    if(!card_numbers || !Array.isArray(card_numbers) || !cards.length) {
-        return res.status(400).json({ message: 'Missing parameters' });
+    if(!user_id || !validateCardNumbers(card_numbers)) {
+        return res.status(400).json({ message: 'Bad request' });
     }
 
     let user, person;
@@ -23,11 +25,8 @@ router.post('/', async (req, res) => {
     try {
         person = await readOne(
             'person',
-            { 'person': ['doc_number'], 'doc_type': ['doc_type'], 'address': ['zip_code'] },
-            [
-                'JOIN address ON person.address_id = address.id',
-                'JOIN doc_type ON person.doc_type_id = doc_type.id',
-            ],
+            { 'person': ['doc_number', 'email', 'first_name', 'last_name'] },
+            null,
             { 'id': user.person_id },
             poolU
         );
@@ -36,9 +35,56 @@ router.post('/', async (req, res) => {
         return res.status(500).json({ message: 'Internal server error' });
     }
 
-    const { doc_number, doc_type, zip_code } = person;
+    const { doc_number, email, first_name, last_name } = person;
+    const cardsWestern = card_numbers.filter(cardIsWestern);
+    const cardsEast = card_numbers.filter(card => !cardIsWestern(card));
 
-    // TODO: Call banks apis
+    let balances = [];
+    if(cardsWestern.length) {
+        try {
+            const { data: json } = await fetch(WESTERN_BANK_API_ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    'id': doc_number,
+                    'nombre': first_name + ' ' + last_name,
+                    'email': email,
+                    'nroTarjetas': cardsWestern,
+                }),
+            });
+            console.log(json);
+            if(json.message === 'OK') {
+                balances = balances.concat(json.data.balance);
+            } else throw new Error();
+        } catch (err) {
+            return res.status(500).json({ message: 'Internal server error when requesting Western Bank' });
+        }
+    }
+
+    if(cardsEast.length) {
+        try {
+            const { data: json } = await fetch(EAST_BANK_API_ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    'id': doc_number,
+                    'name': first_name + ' ' + last_name,
+                    'email': email,
+                    'nroTarjetas': cardsEast,
+                }),
+            });
+            if(json.message === 'OK') {
+                balances = balances.concat(json.data.balance);
+            } else throw new Error();
+        } catch (err) {
+            return res.status(500).json({ message: 'Internal server error when requesting East Bank' });
+        }
+    }
+    return res.status(200).json(balances);
 });
 
 export default router;
