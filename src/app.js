@@ -1,6 +1,7 @@
 import express from 'express';
 import morgan from 'morgan';
 import balance from './gateway/balance.js';
+import cardExists from './gateway/cardExists.js';
 import pkg from '../package.json' assert { type: 'json' };
 import poolU from './services/dbUniv.js';
 import poolP from './services/dbPaidify.js';
@@ -46,7 +47,8 @@ app.get('/ping', async (_, res) => {
 
     res.status(200).json(results);
 });
-app.use('/check-balance', balance);
+app.post('/check-balance', balance);
+app.post('/card-exists', cardExists);
 app.post('/api-gateway', async (_, res) => {
     const { status, message, error } = await apiGateway();
     res.status(status).json({ message, error });
