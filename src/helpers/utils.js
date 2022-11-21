@@ -17,3 +17,7 @@ export function validateCardNumber(card) {
 export function cardIsWestern(card) {
     return String(card)[1] >= 5;
 }
+
+export function parseOwnerName(owner) {
+    return owner.toLowerCase().split(' ').map((name) => name[0].toUpperCase() + name.slice(1)).join(' ');
+}

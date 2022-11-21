@@ -3,7 +3,7 @@ import { readMany, readOne } from '../helpers/crud.js'
 import poolP from '../services/dbPaidify.js';
 import poolU from '../services/dbUniv.js';
 import { WESTERN_BANK_API_ENDPOINT, EAST_BANK_API_ENDPOINT, JWT_SECRET } from '../config/index.config.js';
-import { cardIsWestern, validateCardNumbers } from '../helpers/utils.js';
+import { cardIsWestern, parseOwnerName, validateCardNumbers } from '../helpers/utils.js';
 import fetch from '../helpers/fetch.js';
 import { ROLE_DEFAULT } from '../config/constants.js';
 import jwt from 'jsonwebtoken';
@@ -12,7 +12,7 @@ const router = new Router();
 
 router.use('/', async function (req, res) {
     const { card_numbers } = req.body;
-    if(!validateCardNumbers(card_numbers)) {
+    if (!validateCardNumbers(card_numbers)) {
         return res.status(400).json({ message: 'Bad request' });
     }
 
@@ -32,96 +32,95 @@ router.use('/', async function (req, res) {
     }
 
     const userId = token.id;
-    let userCards;
+    
+    let userCards; // userCards will be the cards that the user has from now on
     try {
-        userCards = (await readMany(
+        userCards = await readMany(
             'payment_method',
-            { 'payment_method': ['card_number'] },
+            { 'payment_method': ['card_number', 'owner', 'card_type_id'] },
             [],
-            { 'user_id': userId },
-            null,
-            null,
-            poolP
-        )).map(({ card_number }) => card_number);
+            { 'user_id': userId, 'card_number': card_numbers },
+            null, null, poolP
+        );
     } catch (err) {
         console.log(err);
         return res.status(500).json({ message: 'Internal server error' });
     }
-    if(!card_numbers.some(card => userCards.includes(card))) {
+    if (userCards.length !== card_numbers.length) {
         return res.status(403).json({ message: 'Forbidden' })
     }
-    
-    let person;
-    try {
-        const personId = (await readOne(
-            'user', { 'user': ['person_id'], }, [], { id: userId }, poolP
-        )).person_id;
-        person = await readOne(
-            'person',
-            { 'person': ['doc_number', 'first_name', 'last_name'] },
-            null,
-            { 'id': personId },
-            poolU
-        );
-    } catch (err) {
-        if(err.message === 'Not found') return res.status(404).json({ message: 'User or person not found' });
-        return res.status(500).json({ message: 'Internal server error' });
-    }
-    // const person = { first_name: 'Gustavo', last_name: 'Marques', doc_number: 'ZTFL' };
-    // const person = { first_name: 'Jairo', last_name: 'Velasco', doc_number: 'QUSG' };
+
+    // before continuing, parse cards owner from upper case to "normal"
+    userCards.forEach(card => card.owner = parseOwnerName(card.owner));
     
     const cardsWestern = [], cardsEast = [];
-    card_numbers.forEach(card => cardIsWestern(card) ? cardsWestern.push(card) : cardsEast.push(card));
+    userCards.forEach(card => cardIsWestern(card.card_number) ?
+        cardsWestern.push(card)
+        : cardsEast.push(card)
+    );
+    // 
+    const promises = [];
+    
+    if (cardsWestern.length) {
+        console.log({
+            'tarjetas': cardsWestern.map(({ card_number, card_type_id, owner }) => ({
+                'numero': card_number,
+                'owner': owner,
+                'tipo': card_type_id
+            }))
+        });
+        promises.push(fetch(WESTERN_BANK_API_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: {
+                'tarjetas': cardsWestern.map(({ card_number, card_type_id, owner }) => ({
+                    'numero': card_number,
+                    'owner': owner,
+                    'tipo': card_type_id
+                }))
+            }
+        }));
+    }
 
+    if (cardsEast.length) {
+        console.log({
+            'tarjetas': cardsEast.map(({ card_number, card_type_id, owner }) => ({
+                'numero': card_number,
+                'owner': owner,
+                'tipo': card_type_id
+            }))
+        });
+        promises.push(fetch(EAST_BANK_API_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: {
+                'tarjetas': cardsEast.map(({ card_number, card_type_id, owner }) => ({
+                    'numero': card_number,
+                    'owner': owner,
+                    'tipo': card_type_id
+                }))
+            }
+        }));
+    }
+
+    let responses;
+    try {
+        responses = await Promise.all(promises);
+    } catch (err) {
+        console.log(err);
+        return res.status(500).json({ message: 'Internal server error' });
+    }
+    
     let balances = [];
-    if(cardsWestern.length) {
-        try {
-            console.log({
-                'id': person.doc_number,
-                'nombre': person.first_name + ' ' + person.last_name,
-                'nroTarjetas': cardsWestern
-            });
-            const { data: json } = await fetch(WESTERN_BANK_API_ENDPOINT, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    'id': person.doc_number,
-                    'nombre': person.first_name + ' ' + person.last_name,
-                    'nroTarjetas': cardsWestern
-                }),
-            });
-            console.log(json);
-            if(json.message === 'OK') {
-                balances = balances.concat(json.saldos);
-            } else throw new Error();
-        } catch (err) {
-            console.log(err);
-            return res.status(500).json({ message: 'Internal server error when requesting Western Bank' });
+    for (let i = 0; i < responses.length; i++) {
+        if (responses[i].status !== 200) {
+            return res.status(responses[i].status).json({ message: responses[i].data.message });
         }
+        const { saldos } = responses[i].data;
+        balances = balances.concat(saldos);
     }
-    if(cardsEast.length) {
-        try {
-            const { data: json } = await fetch(EAST_BANK_API_ENDPOINT + '/checkbalance', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    'id': person.doc_number,
-                    'nombre': person.first_name + ' ' + person.last_name,
-                    'nroTarjetas': cardsEast
-                }),
-            });
-            console.log(json);
-            if(json.message === 'OK') {
-                balances = balances.concat(json.saldos);
-            } else throw new Error();
-        } catch (err) {
-            return res.status(500).json({ message: 'Internal server error when requesting East Bank' });
-        }
-    }
-    // if(card_numbers.length !== balances.length) {
-    //     return res.status(500).json({ message: 'Internal server error' });
-    // }
-    return res.status(200).json(balances);
+    
+    res.status(200).json(balances);
 });
 
 export default router;
