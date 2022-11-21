@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { readOne } from '../helpers/crud.js'
+import { readMany, readOne } from '../helpers/crud.js'
 import poolP from '../services/dbPaidify.js';
 import poolU from '../services/dbUniv.js';
-import { WESTERN_BANK_API_URL, EAST_BANK_API_URL, JWT_SECRET } from '../config/index.config.js';
+import { WESTERN_BANK_API_ENDPOINT, EAST_BANK_API_ENDPOINT, JWT_SECRET } from '../config/index.config.js';
 import { cardIsWestern, validateCardNumbers } from '../helpers/utils.js';
 import fetch from '../helpers/fetch.js';
 import { ROLE_DEFAULT } from '../config/constants.js';
@@ -39,12 +39,15 @@ router.use('/', async function (req, res) {
             { 'payment_method': ['card_number'] },
             [],
             { 'user_id': userId },
+            null,
+            null,
             poolP
         )).map(({ card_number }) => card_number);
     } catch (err) {
+        console.log(err);
         return res.status(500).json({ message: 'Internal server error' });
     }
-    if(!card_numbers.some(card => userCards.contains(card))) {
+    if(!card_numbers.some(card => userCards.includes(card))) {
         return res.status(403).json({ message: 'Forbidden' })
     }
     
@@ -65,6 +68,7 @@ router.use('/', async function (req, res) {
         return res.status(500).json({ message: 'Internal server error' });
     }
     // const person = { first_name: 'Gustavo', last_name: 'Marques', doc_number: 'ZTFL' };
+    // const person = { first_name: 'Jairo', last_name: 'Velasco', doc_number: 'QUSG' };
     
     const cardsWestern = [], cardsEast = [];
     card_numbers.forEach(card => cardIsWestern(card) ? cardsWestern.push(card) : cardsEast.push(card));
@@ -72,7 +76,12 @@ router.use('/', async function (req, res) {
     let balances = [];
     if(cardsWestern.length) {
         try {
-            const { data: json } = await fetch(WESTERN_BANK_API_URL + '/checkbalance', {
+            console.log({
+                'id': person.doc_number,
+                'nombre': person.first_name + ' ' + person.last_name,
+                'nroTarjetas': cardsWestern
+            });
+            const { data: json } = await fetch(WESTERN_BANK_API_ENDPOINT, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -86,12 +95,13 @@ router.use('/', async function (req, res) {
                 balances = balances.concat(json.saldos);
             } else throw new Error();
         } catch (err) {
+            console.log(err);
             return res.status(500).json({ message: 'Internal server error when requesting Western Bank' });
         }
     }
     if(cardsEast.length) {
         try {
-            const { data: json } = await fetch(EAST_BANK_API_URL + '/checkbalance', {
+            const { data: json } = await fetch(EAST_BANK_API_ENDPOINT + '/checkbalance', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
