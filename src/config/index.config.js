@@ -25,3 +25,8 @@ export const EAST_BANK_API_ENDPOINT = process.env.EAST_BANK_API_ENDPOINT || 'htt
 
 // jwt
 export const JWT_SECRET = process.env.JWT_SECRET || 'secret';
+
+// other
+if (process.env.TERMINAL_TITLE) {
+    process.title = process.env.TERMINAL_TITLE;
+}
